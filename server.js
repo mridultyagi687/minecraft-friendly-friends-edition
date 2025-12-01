@@ -83,6 +83,9 @@ app.post('/api/auth/login', async (req, res) => {
                 user = result.rows[0];
                 passwordField = user.password_hash;
                 console.log(`[AUTH] User found in 'User' table: ${user.username} (ID: ${user.id})`);
+                console.log(`[AUTH] Password hash from User table: ${passwordField ? passwordField.substring(0, 30) + '...' : 'null'}`);
+            } else {
+                console.log(`[AUTH] User not found in 'User' table, trying 'users' table`);
             }
         } catch (tableError) {
             console.log(`[AUTH] 'User' table query error: ${tableError.message}, trying 'users' table`);
@@ -151,33 +154,38 @@ app.post('/api/auth/login', async (req, res) => {
                         const saltEncoded = hashParts[1];
                         const storedHash = hashParts[2];
                         
-                        // Try to decode salt from base64 (common encoding)
-                        let salt;
-                        try {
-                            salt = Buffer.from(saltEncoded, 'base64');
-                        } catch (e) {
-                            // If base64 decode fails, use as-is
-                            salt = saltEncoded;
+                        console.log(`[AUTH] PBKDF2 parsed - iterations: ${iterations}, salt: ${saltEncoded}, hash length: ${storedHash.length}`);
+                        
+                        // Try multiple salt encoding methods
+                        const saltMethods = [
+                            { name: 'string', value: saltEncoded },
+                            { name: 'base64-buffer', value: Buffer.from(saltEncoded, 'base64') },
+                            { name: 'base64-string', value: Buffer.from(saltEncoded, 'base64').toString('utf8') },
+                            { name: 'hex-buffer', value: Buffer.from(saltEncoded, 'hex') }
+                        ];
+                        
+                        // Hash is 64 hex characters = 32 bytes
+                        const keyLength = 32;
+                        
+                        for (const saltMethod of saltMethods) {
+                            try {
+                                const derivedKey = crypto.pbkdf2Sync(password, saltMethod.value, iterations, keyLength, 'sha256');
+                                const derivedHashHex = derivedKey.toString('hex');
+                                
+                                if (derivedHashHex === storedHash) {
+                                    isValidPassword = true;
+                                    console.log(`[AUTH] PBKDF2 match found using salt method: ${saltMethod.name}`);
+                                    break;
+                                } else {
+                                    console.log(`[AUTH] PBKDF2 ${saltMethod.name} - stored: ${storedHash.substring(0, 16)}..., derived: ${derivedHashHex.substring(0, 16)}...`);
+                                }
+                            } catch (e) {
+                                console.log(`[AUTH] PBKDF2 ${saltMethod.name} failed: ${e.message}`);
+                            }
                         }
                         
-                        console.log(`[AUTH] PBKDF2 parsed - iterations: ${iterations}, salt (raw): ${saltEncoded.substring(0, 10)}..., hash: ${storedHash.substring(0, 16)}...`);
-                        
-                        // Derive key from password using same parameters
-                        // Hash is 64 hex characters, so it's hex encoded
-                        // Try different key lengths: 32 bytes (256 bits) is standard for SHA-256
-                        const keyLength = storedHash.length === 64 ? 32 : 32; // 64 hex chars = 32 bytes
-                        const derivedKey = crypto.pbkdf2Sync(password, salt, iterations, keyLength, 'sha256');
-                        const derivedHashHex = derivedKey.toString('hex');
-                        
-                        isValidPassword = (derivedHashHex === storedHash);
-                        
-                        console.log(`[AUTH] PBKDF2 comparison - stored: ${storedHash.substring(0, 16)}..., derived: ${derivedHashHex.substring(0, 16)}..., match: ${isValidPassword}`);
-                        
-                        // If hex doesn't match, try base64
-                        if (!isValidPassword && storedHash.length !== 64) {
-                            const derivedHashBase64 = derivedKey.toString('base64');
-                            isValidPassword = (derivedHashBase64 === storedHash);
-                            console.log(`[AUTH] PBKDF2 base64 comparison - match: ${isValidPassword}`);
+                        if (!isValidPassword) {
+                            console.log(`[AUTH] PBKDF2 comparison failed with all salt methods`);
                         }
                     } else {
                         console.error(`[AUTH] Invalid PBKDF2 hash format - expected iterations$salt$hash, got ${hashParts.length} parts`);
