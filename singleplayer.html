@@ -143,6 +143,122 @@
             border: 1px solid #555;
             border-radius: 5px;
         }
+        
+        #inventory {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            pointer-events: auto;
+            z-index: 200;
+            display: none;
+            min-width: 400px;
+        }
+        
+        #inventory.active {
+            display: block;
+        }
+        
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 50px);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .inventory-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(139, 139, 139, 0.8);
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .inventory-slot:hover {
+            border-color: #fff;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 12px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+        }
+        
+        #crafting-table {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #555;
+        }
+        
+        .crafting-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            gap: 5px;
+            margin: 10px auto;
+            width: fit-content;
+        }
+        
+        .crafting-result {
+            margin-left: 20px;
+            display: inline-block;
+            vertical-align: top;
+        }
+        
+        .crafting-arrow {
+            display: inline-block;
+            margin: 0 10px;
+            font-size: 24px;
+            vertical-align: middle;
+        }
+        
+        .crafting-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(139, 139, 139, 0.6);
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .crafting-result-slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(139, 139, 139, 0.8);
+            border: 3px solid #8b6914;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            cursor: pointer;
+        }
+        
+        .crafting-result-slot:hover {
+            border-color: #ffd700;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .inventory-title {
+            color: white;
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
     </style>
 </head>
 <body>
@@ -158,6 +274,30 @@
             
             <div id="hud">
                 <!-- Hotbar will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <div id="inventory">
+            <div class="inventory-title">Inventory</div>
+            <div class="inventory-grid" id="inventory-grid">
+                <!-- Inventory slots will be populated by JavaScript -->
+            </div>
+            <div id="crafting-table">
+                <div class="inventory-title">Crafting</div>
+                <div style="text-align: center;">
+                    <div class="crafting-grid" id="crafting-grid">
+                        <!-- Crafting slots will be populated by JavaScript -->
+                    </div>
+                    <span class="crafting-arrow">→</span>
+                    <div class="crafting-result">
+                        <div class="crafting-result-slot" id="crafting-result">
+                            <!-- Crafting result will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="menu-button" id="close-inventory-btn">Close (E)</button>
             </div>
         </div>
         
