@@ -137,25 +137,57 @@ app.post('/api/auth/login', async (req, res) => {
         
         // Check hash format and use appropriate verification method
         if (passwordField.startsWith('pbkdf2:')) {
-            // PBKDF2 format: pbkdf2:sha256:iterations:salt:hash
+            // PBKDF2 format: pbkdf2:sha256:iterations$salt$hash
+            // Example: pbkdf2:sha256:600000$1ZefPrgIXjwzkJ7F$7de0e4b6bf2f0908af0d307c233bd096b66bec10a27cad4500771239fb90a858
             try {
                 const parts = passwordField.split(':');
-                if (parts.length === 5 && parts[0] === 'pbkdf2' && parts[1] === 'sha256') {
-                    const iterations = parseInt(parts[2]);
-                    const salt = parts[3];
-                    const storedHash = parts[4];
+                
+                if (parts.length >= 3 && parts[0] === 'pbkdf2' && parts[1] === 'sha256') {
+                    // Third part contains: iterations$salt$hash
+                    const hashParts = parts[2].split('$');
                     
-                    // Derive key from password using same parameters
-                    const derivedKey = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
-                    const derivedHash = derivedKey.toString('base64');
-                    
-                    isValidPassword = (derivedHash === storedHash);
-                    console.log(`[AUTH] PBKDF2 comparison result: ${isValidPassword}`);
+                    if (hashParts.length === 3) {
+                        const iterations = parseInt(hashParts[0]);
+                        const saltEncoded = hashParts[1];
+                        const storedHash = hashParts[2];
+                        
+                        // Try to decode salt from base64 (common encoding)
+                        let salt;
+                        try {
+                            salt = Buffer.from(saltEncoded, 'base64');
+                        } catch (e) {
+                            // If base64 decode fails, use as-is
+                            salt = saltEncoded;
+                        }
+                        
+                        console.log(`[AUTH] PBKDF2 parsed - iterations: ${iterations}, salt (raw): ${saltEncoded.substring(0, 10)}..., hash: ${storedHash.substring(0, 16)}...`);
+                        
+                        // Derive key from password using same parameters
+                        // Hash is 64 hex characters, so it's hex encoded
+                        // Try different key lengths: 32 bytes (256 bits) is standard for SHA-256
+                        const keyLength = storedHash.length === 64 ? 32 : 32; // 64 hex chars = 32 bytes
+                        const derivedKey = crypto.pbkdf2Sync(password, salt, iterations, keyLength, 'sha256');
+                        const derivedHashHex = derivedKey.toString('hex');
+                        
+                        isValidPassword = (derivedHashHex === storedHash);
+                        
+                        console.log(`[AUTH] PBKDF2 comparison - stored: ${storedHash.substring(0, 16)}..., derived: ${derivedHashHex.substring(0, 16)}..., match: ${isValidPassword}`);
+                        
+                        // If hex doesn't match, try base64
+                        if (!isValidPassword && storedHash.length !== 64) {
+                            const derivedHashBase64 = derivedKey.toString('base64');
+                            isValidPassword = (derivedHashBase64 === storedHash);
+                            console.log(`[AUTH] PBKDF2 base64 comparison - match: ${isValidPassword}`);
+                        }
+                    } else {
+                        console.error(`[AUTH] Invalid PBKDF2 hash format - expected iterations$salt$hash, got ${hashParts.length} parts`);
+                    }
                 } else {
-                    console.error(`[AUTH] Invalid PBKDF2 hash format`);
+                    console.error(`[AUTH] Invalid PBKDF2 format - expected pbkdf2:sha256:..., got ${parts.length} parts`);
                 }
             } catch (pbkdf2Error) {
                 console.error(`[AUTH] PBKDF2 comparison error:`, pbkdf2Error.message);
+                console.error(`[AUTH] PBKDF2 error stack:`, pbkdf2Error.stack);
             }
         } else if (passwordField.startsWith('$2')) {
             // Bcrypt format
