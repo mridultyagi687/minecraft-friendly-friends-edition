@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friendly Friends App - Login</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen active">
+            <div class="login-container">
+                <div class="logo-container">
+                    <h1 class="app-title">friendly friends app</h1>
+                </div>
+                <form id="login-form" class="login-form">
+                    <div class="form-group">
+                        <input type="text" id="username" placeholder="Username" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="password" placeholder="Password" required>
+                    </div>
+                    <button type="submit" class="login-button">Login</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Title Screen -->
+        <div id="title-screen" class="screen">
+            <div class="title-container">
+                <h1 class="minecraft-title">Minecraft</h1>
+                <h2 class="subtitle">Friendly Friends Edition</h2>
+                <div class="title-buttons">
+                    <button class="title-button" id="singleplayer-btn">Singleplayer</button>
+                    <button class="title-button" id="multiplayer-btn">Multiplayer</button>
+                    <button class="title-button" id="options-btn">Options</button>
+                    <button class="title-button" id="quit-btn">Quit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
+
