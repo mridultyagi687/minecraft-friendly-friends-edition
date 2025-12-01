@@ -68,10 +68,11 @@ app.post('/api/auth/login', async (req, res) => {
         
         console.log(`[AUTH] Attempting login for: ${username}`);
         
-        // First try with 'User' table (capitalized - might be the one used by Friendly Friends App)
+        // First try with 'User' table (capitalized - used by Friendly Friends App)
+        // This table uses camelCase: passwordHash instead of password_hash
         try {
             query = `
-                SELECT id, username, email, password_hash
+                SELECT id, username, email, "passwordHash" as password_hash
                 FROM "User" 
                 WHERE username = $1 OR email = $1
                 LIMIT 1
@@ -84,7 +85,7 @@ app.post('/api/auth/login', async (req, res) => {
                 console.log(`[AUTH] User found in 'User' table: ${user.username} (ID: ${user.id})`);
             }
         } catch (tableError) {
-            console.log(`[AUTH] 'User' table not accessible, trying 'users' table`);
+            console.log(`[AUTH] 'User' table query error: ${tableError.message}, trying 'users' table`);
         }
         
         // If not found in 'User' table, try 'users' table
@@ -530,35 +531,58 @@ app.get('/api/debug/test-users', async (req, res) => {
     }
     
     try {
-        // Try to get column names from users table
-        const result = await pool.query(`
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'users'
-            ORDER BY ordinal_position
-        `);
+        const results = {};
         
-        // Try to get a user (without sensitive data)
-        let userSample = null;
+        // Check 'User' table (capitalized)
         try {
-            const userResult = await pool.query('SELECT id, username, email FROM users LIMIT 1');
-            if (userResult.rows.length > 0) {
-                userSample = userResult.rows[0];
+            const userCols = await pool.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'User'
+                ORDER BY ordinal_position
+            `);
+            results.User_table = {
+                columns: userCols.rows.map(r => r.column_name),
+                sample: null
+            };
+            
+            const userSample = await pool.query('SELECT id, username, email FROM "User" LIMIT 1');
+            if (userSample.rows.length > 0) {
+                results.User_table.sample = userSample.rows[0];
             }
         } catch (e) {
-            // Ignore
+            results.User_table = { error: e.message };
+        }
+        
+        // Check 'users' table (lowercase)
+        try {
+            const usersCols = await pool.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'users'
+                ORDER BY ordinal_position
+            `);
+            results.users_table = {
+                columns: usersCols.rows.map(r => r.column_name),
+                sample: null
+            };
+            
+            const usersSample = await pool.query('SELECT id, username, email FROM users LIMIT 1');
+            if (usersSample.rows.length > 0) {
+                results.users_table.sample = usersSample.rows[0];
+            }
+        } catch (e) {
+            results.users_table = { error: e.message };
         }
         
         res.json({ 
             success: true,
-            columns: result.rows.map(r => r.column_name),
-            sample_user: userSample,
-            message: 'Users table accessible'
+            ...results
         });
     } catch (error) {
         res.status(500).json({ 
             success: false, 
-            message: 'Error accessing users table',
+            message: 'Error accessing tables',
             error: error.message 
         });
     }
