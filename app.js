@@ -2,10 +2,39 @@
 const AppState = {
     currentScreen: 'login',
     API_URL: 'http://localhost:3000/api',
+    currentUser: null,
     
     init() {
+        // Check if user is already logged in
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+            try {
+                this.currentUser = JSON.parse(savedUser);
+                this.showTitleScreen();
+            } catch (e) {
+                localStorage.removeItem('currentUser');
+            }
+        }
+        
         this.setupLoginForm();
         this.setupTitleScreenButtons();
+    },
+    
+    // Helper function for authenticated API calls
+    async apiCall(endpoint, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+        
+        if (this.currentUser && this.currentUser.id) {
+            headers['user-id'] = this.currentUser.id.toString();
+        }
+        
+        return fetch(`${this.API_URL}${endpoint}`, {
+            ...options,
+            headers
+        });
     },
     
     async setupLoginForm() {
@@ -38,8 +67,9 @@ const AppState = {
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Store user info (you might want to use localStorage or sessionStorage)
+                    // Store user info in localStorage
                     this.currentUser = data.user;
+                    localStorage.setItem('currentUser', JSON.stringify(data.user));
                     this.showTitleScreen();
                 } else {
                     this.showError(data.message || 'Login failed. Please check your credentials.');
@@ -101,7 +131,7 @@ const AppState = {
         // Quit button
         document.getElementById('quit-btn').addEventListener('click', () => {
             if (confirm('Are you sure you want to quit?')) {
-                this.showLoginScreen();
+                this.logout();
             }
         });
     },
@@ -127,6 +157,12 @@ const AppState = {
         loginScreen.classList.add('active');
         
         this.currentScreen = 'login';
+    },
+    
+    logout() {
+        this.currentUser = null;
+        localStorage.removeItem('currentUser');
+        this.showLoginScreen();
     }
 };
 
