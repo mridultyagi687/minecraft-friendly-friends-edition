@@ -63,70 +63,57 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     try {
-        // Try to find the user - check for different possible password column names
+        // Try to find the user - check both 'User' and 'users' tables
         let query, user, passwordField;
         
-        // First try with password_hash
+        console.log(`[AUTH] Attempting login for: ${username}`);
+        
+        // First try with 'User' table (capitalized - might be the one used by Friendly Friends App)
         try {
             query = `
                 SELECT id, username, email, password_hash
-                FROM users 
+                FROM "User" 
                 WHERE username = $1 OR email = $1
                 LIMIT 1
             `;
-            console.log(`[AUTH] Attempting login for: ${username}`);
             const result = await pool.query(query, [username]);
             
-            if (result.rows.length === 0) {
-                console.log(`[AUTH] User not found: ${username}`);
-                return res.status(401).json({ 
-                    success: false, 
-                    message: 'Invalid username or password' 
-                });
+            if (result.rows.length > 0) {
+                user = result.rows[0];
+                passwordField = user.password_hash;
+                console.log(`[AUTH] User found in 'User' table: ${user.username} (ID: ${user.id})`);
             }
-            
-            user = result.rows[0];
-            passwordField = user.password_hash;
-            
-            if (!passwordField) {
-                // Try with 'password' column instead
+        } catch (tableError) {
+            console.log(`[AUTH] 'User' table not accessible, trying 'users' table`);
+        }
+        
+        // If not found in 'User' table, try 'users' table
+        if (!user) {
+            try {
                 query = `
-                    SELECT id, username, email, password
-                    FROM users 
-                    WHERE username = $1 OR email = $1
-                    LIMIT 1
-                `;
-                const result2 = await pool.query(query, [username]);
-                if (result2.rows.length > 0) {
-                    user = result2.rows[0];
-                    passwordField = user.password;
-                }
-            }
-        } catch (colError) {
-            // If password_hash doesn't exist, try 'password' column
-            if (colError.code === '42703') { // undefined_column
-                console.log('[AUTH] password_hash column not found, trying password column');
-                query = `
-                    SELECT id, username, email, password
+                    SELECT id, username, email, password_hash
                     FROM users 
                     WHERE username = $1 OR email = $1
                     LIMIT 1
                 `;
                 const result = await pool.query(query, [username]);
                 
-                if (result.rows.length === 0) {
-                    console.log(`[AUTH] User not found: ${username}`);
-                    return res.status(401).json({ 
-                        success: false, 
-                        message: 'Invalid username or password' 
-                    });
+                if (result.rows.length > 0) {
+                    user = result.rows[0];
+                    passwordField = user.password_hash;
+                    console.log(`[AUTH] User found in 'users' table: ${user.username} (ID: ${user.id})`);
                 }
-                
-                user = result.rows[0];
-                passwordField = user.password;
-            } else {
-                throw colError;
+            } catch (tableError) {
+                console.error(`[AUTH] Error querying users table:`, tableError.message);
             }
+        }
+        
+        if (!user) {
+            console.log(`[AUTH] User not found in any table: ${username}`);
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Invalid username or password' 
+            });
         }
         
         console.log(`[AUTH] User found: ${user.username} (ID: ${user.id})`);
@@ -471,14 +458,8 @@ app.put('/api/servers/:id/last-played', authenticateUser, async (req, res) => {
     }
 });
 
-// Debug endpoint to check database schema (development only)
+// Debug endpoint to check database schema
 app.get('/api/debug/schema', async (req, res) => {
-    if (process.env.NODE_ENV !== 'development') {
-        return res.status(403).json({ 
-            success: false, 
-            message: 'Debug endpoint only available in development' 
-        });
-    }
     
     if (!pool) {
         return res.status(500).json({ 
@@ -534,6 +515,50 @@ app.get('/api/debug/schema', async (req, res) => {
         res.status(500).json({ 
             success: false, 
             message: 'Error checking schema',
+            error: error.message 
+        });
+    }
+});
+
+// Simple test endpoint to check users table
+app.get('/api/debug/test-users', async (req, res) => {
+    if (!pool) {
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Database not configured' 
+        });
+    }
+    
+    try {
+        // Try to get column names from users table
+        const result = await pool.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'users'
+            ORDER BY ordinal_position
+        `);
+        
+        // Try to get a user (without sensitive data)
+        let userSample = null;
+        try {
+            const userResult = await pool.query('SELECT id, username, email FROM users LIMIT 1');
+            if (userResult.rows.length > 0) {
+                userSample = userResult.rows[0];
+            }
+        } catch (e) {
+            // Ignore
+        }
+        
+        res.json({ 
+            success: true,
+            columns: result.rows.map(r => r.column_name),
+            sample_user: userSample,
+            message: 'Users table accessible'
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error accessing users table',
             error: error.message 
         });
     }
