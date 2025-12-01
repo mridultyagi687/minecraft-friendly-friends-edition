@@ -128,9 +128,47 @@ app.post('/api/auth/login', async (req, res) => {
             });
         }
         
-        // Try bcrypt comparison
-        const bcrypt = require('bcrypt');
-        const isValidPassword = await bcrypt.compare(password, passwordField);
+        // Log password hash format for debugging (first 20 chars only)
+        const hashPreview = passwordField ? passwordField.substring(0, 20) + '...' : 'null';
+        console.log(`[AUTH] Password hash preview: ${hashPreview} (length: ${passwordField ? passwordField.length : 0})`);
+        
+        let isValidPassword = false;
+        const crypto = require('crypto');
+        
+        // Check hash format and use appropriate verification method
+        if (passwordField.startsWith('pbkdf2:')) {
+            // PBKDF2 format: pbkdf2:sha256:iterations:salt:hash
+            try {
+                const parts = passwordField.split(':');
+                if (parts.length === 5 && parts[0] === 'pbkdf2' && parts[1] === 'sha256') {
+                    const iterations = parseInt(parts[2]);
+                    const salt = parts[3];
+                    const storedHash = parts[4];
+                    
+                    // Derive key from password using same parameters
+                    const derivedKey = crypto.pbkdf2Sync(password, salt, iterations, 32, 'sha256');
+                    const derivedHash = derivedKey.toString('base64');
+                    
+                    isValidPassword = (derivedHash === storedHash);
+                    console.log(`[AUTH] PBKDF2 comparison result: ${isValidPassword}`);
+                } else {
+                    console.error(`[AUTH] Invalid PBKDF2 hash format`);
+                }
+            } catch (pbkdf2Error) {
+                console.error(`[AUTH] PBKDF2 comparison error:`, pbkdf2Error.message);
+            }
+        } else if (passwordField.startsWith('$2')) {
+            // Bcrypt format
+            try {
+                const bcrypt = require('bcrypt');
+                isValidPassword = await bcrypt.compare(password, passwordField);
+                console.log(`[AUTH] Bcrypt comparison result: ${isValidPassword}`);
+            } catch (bcryptError) {
+                console.error(`[AUTH] Bcrypt comparison error:`, bcryptError.message);
+            }
+        } else {
+            console.error(`[AUTH] Unknown password hash format: ${passwordField.substring(0, 20)}`);
+        }
         
         if (!isValidPassword) {
             console.log(`[AUTH] Password mismatch for user: ${username}`);
