@@ -128,10 +128,22 @@ const AppState = {
             alert('Options - Coming soon!');
         });
         
-        // Quit button
+        // Logout button
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to logout?')) {
+                this.logout();
+            }
+        });
+        
+        // Quit button - closes the tab/window
         document.getElementById('quit-btn').addEventListener('click', () => {
             if (confirm('Are you sure you want to quit?')) {
-                this.logout();
+                window.close();
+                // If window.close() doesn't work (some browsers block it), try alternative
+                if (!document.hidden) {
+                    // Fallback: redirect to about:blank
+                    window.location.href = 'about:blank';
+                }
             }
         });
     },
