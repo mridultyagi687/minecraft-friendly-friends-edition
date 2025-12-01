@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Friendly Friends Edition - Singleplayer</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+        }
+        
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+        }
+        
+        #crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        #crosshair::after {
+            height: 2px;
+            width: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        
+        .hotbar-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .hotbar-slot.selected {
+            border-color: #fff;
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        #game-menu {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: auto;
+        }
+        
+        .menu-button {
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 2px solid #555;
+            cursor: pointer;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .menu-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        #game-mode-selector {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            pointer-events: auto;
+            z-index: 200;
+            display: none;
+        }
+        
+        #game-mode-selector.active {
+            display: block;
+        }
+        
+        .game-mode-button {
+            padding: 15px 30px;
+            margin: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid #555;
+            cursor: pointer;
+            font-size: 16px;
+            width: 200px;
+        }
+        
+        .game-mode-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        #world-name-input {
+            padding: 10px;
+            margin: 10px 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid #555;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <div id="game-ui">
+            <div id="crosshair"></div>
+            
+            <div id="game-menu">
+                <button class="menu-button" id="menu-btn">Menu</button>
+            </div>
+            
+            <div id="hud">
+                <!-- Hotbar will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <div id="game-mode-selector">
+            <h2 style="color: white; text-align: center; margin-bottom: 20px;">Select Game Mode</h2>
+            <input type="text" id="world-name-input" placeholder="World Name" value="My World">
+            <div style="text-align: center;">
+                <button class="game-mode-button" data-mode="survival">Survival</button>
+                <button class="game-mode-button" data-mode="creative">Creative</button>
+                <button class="game-mode-button" data-mode="adventure">Adventure</button>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="game-mode-button" id="load-world-btn" style="background: rgba(0, 150, 255, 0.3);">Load World</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="singleplayer.js"></script>
+</body>
+</html>
+

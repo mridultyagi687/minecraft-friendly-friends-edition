@@ -109,9 +109,7 @@ const AppState = {
     setupTitleScreenButtons() {
         // Singleplayer button
         document.getElementById('singleplayer-btn').addEventListener('click', () => {
-            console.log('Singleplayer clicked');
-            // TODO: Implement singleplayer functionality
-            alert('Singleplayer mode - Coming soon!');
+            window.location.href = 'singleplayer.html';
         });
         
         // Multiplayer button
