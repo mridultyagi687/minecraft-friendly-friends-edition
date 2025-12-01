@@ -63,42 +63,96 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     try {
-        // Query the Friendly Friends App database for the user
-        // Adjust the table and column names based on your actual database schema
-        const query = `
-            SELECT id, username, email, password_hash 
-            FROM users 
-            WHERE username = $1 OR email = $1
-            LIMIT 1
-        `;
+        // Try to find the user - check for different possible password column names
+        let query, user, passwordField;
         
-        const result = await pool.query(query, [username]);
+        // First try with password_hash
+        try {
+            query = `
+                SELECT id, username, email, password_hash
+                FROM users 
+                WHERE username = $1 OR email = $1
+                LIMIT 1
+            `;
+            console.log(`[AUTH] Attempting login for: ${username}`);
+            const result = await pool.query(query, [username]);
+            
+            if (result.rows.length === 0) {
+                console.log(`[AUTH] User not found: ${username}`);
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Invalid username or password' 
+                });
+            }
+            
+            user = result.rows[0];
+            passwordField = user.password_hash;
+            
+            if (!passwordField) {
+                // Try with 'password' column instead
+                query = `
+                    SELECT id, username, email, password
+                    FROM users 
+                    WHERE username = $1 OR email = $1
+                    LIMIT 1
+                `;
+                const result2 = await pool.query(query, [username]);
+                if (result2.rows.length > 0) {
+                    user = result2.rows[0];
+                    passwordField = user.password;
+                }
+            }
+        } catch (colError) {
+            // If password_hash doesn't exist, try 'password' column
+            if (colError.code === '42703') { // undefined_column
+                console.log('[AUTH] password_hash column not found, trying password column');
+                query = `
+                    SELECT id, username, email, password
+                    FROM users 
+                    WHERE username = $1 OR email = $1
+                    LIMIT 1
+                `;
+                const result = await pool.query(query, [username]);
+                
+                if (result.rows.length === 0) {
+                    console.log(`[AUTH] User not found: ${username}`);
+                    return res.status(401).json({ 
+                        success: false, 
+                        message: 'Invalid username or password' 
+                    });
+                }
+                
+                user = result.rows[0];
+                passwordField = user.password;
+            } else {
+                throw colError;
+            }
+        }
         
-        if (result.rows.length === 0) {
+        console.log(`[AUTH] User found: ${user.username} (ID: ${user.id})`);
+        
+        // Check if password field exists
+        if (!passwordField) {
+            console.warn('[AUTH] No password field found in user record');
             return res.status(401).json({ 
                 success: false, 
                 message: 'Invalid username or password' 
             });
         }
         
-        const user = result.rows[0];
+        // Try bcrypt comparison
+        const bcrypt = require('bcrypt');
+        const isValidPassword = await bcrypt.compare(password, passwordField);
         
-        // Check if password_hash exists (assuming bcrypt)
-        if (user.password_hash) {
-            const bcrypt = require('bcrypt');
-            const isValidPassword = await bcrypt.compare(password, user.password_hash);
-            
-            if (!isValidPassword) {
-                return res.status(401).json({ 
-                    success: false, 
-                    message: 'Invalid username or password' 
-                });
-            }
-        } else {
-            // If no password_hash column, you might need to adjust this logic
-            // For now, we'll just check if the user exists
-            console.warn('No password_hash found. User authentication may need adjustment.');
+        if (!isValidPassword) {
+            console.log(`[AUTH] Password mismatch for user: ${username}`);
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Invalid username or password' 
+            });
         }
+        
+        console.log(`[AUTH] Successful login for: ${username}`);
         
         // Successful authentication
         res.json({ 
@@ -112,7 +166,12 @@ app.post('/api/auth/login', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Authentication error:', error);
+        console.error('[AUTH] Authentication error:', error);
+        console.error('[AUTH] Error details:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ 
             success: false, 
             message: 'An error occurred during authentication',
@@ -408,6 +467,74 @@ app.put('/api/servers/:id/last-played', authenticateUser, async (req, res) => {
         res.status(500).json({ 
             success: false, 
             message: 'Error updating last played' 
+        });
+    }
+});
+
+// Debug endpoint to check database schema (development only)
+app.get('/api/debug/schema', async (req, res) => {
+    if (process.env.NODE_ENV !== 'development') {
+        return res.status(403).json({ 
+            success: false, 
+            message: 'Debug endpoint only available in development' 
+        });
+    }
+    
+    if (!pool) {
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Database not configured' 
+        });
+    }
+    
+    try {
+        // Get table information
+        const tablesQuery = `
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            ORDER BY table_name
+        `;
+        const tablesResult = await pool.query(tablesQuery);
+        
+        // Get users table columns
+        const columnsQuery = `
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_name = 'users'
+            ORDER BY ordinal_position
+        `;
+        const columnsResult = await pool.query(columnsQuery);
+        
+        // Get sample user (without password)
+        const sampleUserQuery = `
+            SELECT id, username, email, 
+                   CASE WHEN password_hash IS NOT NULL THEN '***' ELSE NULL END as has_password_hash,
+                   CASE WHEN password IS NOT NULL THEN '***' ELSE NULL END as has_password
+            FROM users 
+            LIMIT 1
+        `;
+        let sampleUser = null;
+        try {
+            const sampleResult = await pool.query(sampleUserQuery);
+            if (sampleResult.rows.length > 0) {
+                sampleUser = sampleResult.rows[0];
+            }
+        } catch (e) {
+            // Table might not exist or have different structure
+        }
+        
+        res.json({ 
+            success: true,
+            tables: tablesResult.rows.map(r => r.table_name),
+            users_table_columns: columnsResult.rows,
+            sample_user: sampleUser
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error checking schema',
+            error: error.message 
         });
     }
 });
