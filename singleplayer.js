@@ -97,7 +97,12 @@ class MinecraftGame {
         
         this.currentUser = JSON.parse(savedUser);
         this.setupUI();
-        this.showGameModeSelector();
+
+        // Immediately start a default world so the player never sees a blank screen.
+        // The world can still be renamed/managed later via the pause menu and load world UI.
+        this.gameMode = 'survival';
+        this.worldName = 'My World';
+        this.startGame();
     }
     
     setupUI() {
