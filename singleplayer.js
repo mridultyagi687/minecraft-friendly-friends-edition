@@ -97,12 +97,8 @@ class MinecraftGame {
         
         this.currentUser = JSON.parse(savedUser);
         this.setupUI();
-
-        // Immediately start a default world so the player never sees a blank screen.
-        // The world can still be renamed/managed later via the pause menu and load world UI.
-        this.gameMode = 'survival';
-        this.worldName = 'My World';
-        this.startGame();
+        // Show game mode + world name selector so the player explicitly creates/loads a world
+        this.showGameModeSelector();
     }
     
     setupUI() {
@@ -199,10 +195,55 @@ class MinecraftGame {
     
     startGame() {
         this.hideGameModeSelector();
+        // Use current input value as world name
+        const input = document.getElementById('world-name-input');
+        if (input && input.value.trim()) {
+            this.worldName = input.value.trim();
+        }
         this.initThreeJS();
         this.generateWorld();
         this.animate();
         this.requestPointerLock();
+        // Immediately ensure a world record exists in the database, linked to this user
+        this.ensureWorldRecord();
+    }
+
+    async ensureWorldRecord() {
+        try {
+            const worldData = {
+                name: this.worldName,
+                world_type: 'singleplayer',
+                seed: Date.now().toString()
+            };
+
+            // Check if world already exists for this user
+            const checkResponse = await fetch(`http://localhost:3000/api/worlds`, {
+                headers: {
+                    'user-id': this.currentUser.id.toString()
+                }
+            });
+            const checkData = await checkResponse.json();
+            const existingWorld = checkData.worlds?.find(w => w.name === this.worldName);
+
+            if (existingWorld) {
+                this.currentWorld = existingWorld;
+            } else {
+                const createResponse = await fetch(`http://localhost:3000/api/worlds`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'user-id': this.currentUser.id.toString()
+                    },
+                    body: JSON.stringify(worldData)
+                });
+                const created = await createResponse.json();
+                if (created.success && created.world) {
+                    this.currentWorld = created.world;
+                }
+            }
+        } catch (error) {
+            console.error('Error ensuring world record:', error);
+        }
     }
     
     initThreeJS() {
